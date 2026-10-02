@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D4E7A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="市場雷達">
+<title>市場雷達</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+<style>
+:root{
+  --font:"PingFang TC","Hiragino Sans CNS","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg:#F1F4F7; --card:#FFFFFF; --ink:#13212F; --muted:#586878; --line:#D8DFE6; --head:#F5F7F9;
+  --accent:#1D4E7A; --accent-ink:#FFFFFF; --sel:#E6EFF8;
+  --gold:#9A6A12; --gold-bg:#FBF3DF;
+  --green:#0A7F58; --green-bg:#E1F4EB; --red:#BF3626; --red-bg:#FBE8E4; --flat:#586878; --flat-bg:#E7ECF0;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0E1620; --card:#16212D; --ink:#E7EDF3; --muted:#9AA9B8; --line:#2A3846; --head:#1B2836;
+    --accent:#6BA6DE; --accent-ink:#0B1520; --sel:#1C3248;
+    --gold:#E2B458; --gold-bg:#2A2214;
+    --green:#43C795; --green-bg:#12302A; --red:#FF8672; --red-bg:#3A1F1B; --flat:#9AA9B8; --flat-bg:#243241;
+  }
+}
+/* 漲跌顏色：gr = 綠漲紅跌，rg = 紅漲綠跌 */
+body[data-color="gr"]{--up:var(--green);--up-bg:var(--green-bg);--down:var(--red);--down-bg:var(--red-bg)}
+body[data-color="rg"]{--up:var(--red);--up-bg:var(--red-bg);--down:var(--green);--down-bg:var(--green-bg)}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--font);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h2,h3,h4,p{margin:0}
+small{color:var(--muted);font-size:12px}
+.sub{color:var(--muted);font-size:13px}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1180px;margin:0 auto;padding:12px 16px}
+.brand{font-size:20px;font-weight:700;letter-spacing:.04em}
+.top-actions{display:flex;align-items:center;gap:8px}
+.top select{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:40px;max-width:44vw}
+.icon-btn{background:var(--card);border:1px solid var(--line);border-radius:8px;min-height:40px;min-width:40px;cursor:pointer;font-size:18px}
+
+.tabs{display:flex;gap:2px;overflow-x:auto;max-width:1180px;margin:0 auto;padding:0 16px;scrollbar-width:none;border-bottom:1px solid var(--line)}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;min-height:44px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent)}
+.tab.gold{color:var(--gold)}
+.tab.gold.on{border-bottom-color:var(--gold)}
+.tab.add{font-weight:500}
+
+main{max-width:1180px;margin:0 auto;padding:16px}
+.panel,.result{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.result{margin-top:16px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.panel-head h2{font-size:18px}
+.notice{background:var(--gold-bg);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:14px}
+.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer}
+
+.btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:8px 14px;min-height:40px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.text{border-color:transparent;background:none;color:var(--muted);font-weight:500}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.actions.tight{margin-top:0}
+
+.asks{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:14px}
+.ask{text-align:left;display:grid;gap:2px;padding:14px 16px;border:1px solid var(--line);background:var(--bg);border-radius:10px;cursor:pointer}
+.ask b{font-size:16px}
+.ask span{color:var(--muted);font-size:13px}
+.ask.gold{border-color:var(--gold);background:var(--gold-bg)}
+.ask:disabled{opacity:.5;cursor:not-allowed}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.chip{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.chip.on{border-color:var(--accent);background:var(--sel)}
+.chip label{display:flex;align-items:center;gap:8px;padding:6px 4px 6px 12px;min-height:40px;cursor:pointer}
+.chip input{width:18px;height:18px;accent-color:var(--accent)}
+.chip .x{border:0;background:none;color:var(--muted);padding:0 12px;min-height:40px;cursor:pointer}
+.empty{color:var(--muted);margin:14px 0}
+.addrow{display:flex;gap:8px;flex-wrap:wrap}
+.addrow input{flex:1 1 220px;min-height:40px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:16px}
+
+.res-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.res-head h3{font-size:18px}
+.snap-title{display:none;margin-bottom:6px}
+.cap{margin:18px 0 8px;font-size:15px}
+.disc{margin-top:14px;color:var(--muted);font-size:12px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+tbody tr:last-child>*{border-bottom:0}
+thead th{background:var(--head);color:var(--muted);font-weight:600;white-space:nowrap}
+tbody th{font-weight:400}
+.sticky,thead th:first-child{position:sticky;left:0;z-index:1;background:var(--card)}
+thead th:first-child{background:var(--head);z-index:2}
+.sticky small{display:block}
+.t-stock{min-width:940px}
+.t-gold{min-width:720px}
+.num{white-space:nowrap;text-align:right}
+.long{min-width:220px}
+.mid{min-width:160px}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:6px;font-weight:600;white-space:nowrap}
+.badge i{font-style:normal;font-size:11px}
+.badge.up{color:var(--up);background:var(--up-bg)}
+.badge.down{color:var(--down);background:var(--down-bg)}
+.badge.flat{color:var(--flat);background:var(--flat-bg)}
+.meter{display:inline-grid;gap:4px;min-width:84px;text-align:left}
+.bar{display:block;height:6px;border-radius:3px;background:var(--flat-bg);overflow:hidden}
+.bar>span{display:block;height:100%;background:var(--accent)}
+.cur{margin-right:3px}
+
+.rotate-hint{display:none;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 0;padding:10px 12px;border-radius:8px;background:var(--gold-bg);border:1px solid var(--gold);font-size:14px}
+.rotate-hint .btn{min-height:36px;padding:4px 12px}
+@media (max-width:760px) and (orientation:portrait){.rotate-hint.show{display:flex}}
+
+.loading{display:flex;align-items:center;gap:14px}
+.spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.err{border:1px solid var(--red);background:var(--red-bg);border-radius:8px;padding:12px 14px}
+.err pre{white-space:pre-wrap;word-break:break-word;font-size:12px;margin:8px 0 0}
+.src{margin-top:12px;font-size:13px}
+.src ul{margin:6px 0 0;padding-left:20px}
+.src a{color:var(--accent)}
+
+footer{max-width:1180px;margin:0 auto;padding:8px 16px 28px;color:var(--muted);font-size:12px}
+
+dialog{border:1px solid var(--line);border-radius:14px;padding:0;background:var(--card);color:var(--ink);width:min(560px,calc(100% - 24px));max-height:calc(100% - 24px)}
+dialog::backdrop{background:rgba(8,16,24,.55)}
+.dlg{padding:18px;display:grid;gap:20px}
+.dlg h3{font-size:16px;margin-bottom:8px}
+.field{display:grid;gap:6px;margin-bottom:10px}
+.field label{font-size:13px;color:var(--muted)}
+.field input,.field select{min-height:40px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:16px;width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>input{flex:1 1 180px}
+
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+#toast.show{opacity:1}
+
+/* 轉成圖片時使用的離屏版面 */
+.snap{position:fixed;left:-10000px;top:0;width:1040px;padding:20px;background:var(--card);color:var(--ink)}
+.snap .snap-title{display:block}
+.snap .tablewrap{overflow:visible}
+.snap .sticky,.snap thead th:first-child{position:static}
+
+@media (max-width:600px){
+  .panel,.result{padding:14px}
+  table{font-size:13px}
+  th,td{padding:8px 10px}
+}
+</style>
+</head>
+<body data-color="gr">
+
+<header class="top">
+  <div class="brand">市場雷達</div>
+  <div class="top-actions">
+    <select id="profileSel" aria-label="使用者"></select>
+    <button class="icon-btn" data-act="settings" aria-label="設定">⚙</button>
+  </div>
+</header>
+
+<nav id="tabs" class="tabs" aria-label="分類"></nav>
+
+<main>
+  <section id="panel" class="panel"></section>
+  <section id="result" class="result" aria-live="polite" hidden></section>
+</main>
+
+<footer>AI 根據新聞推測，可能出錯，僅供參考，不是投資建議。</footer>
+
+<dialog id="dlg">
+  <div class="dlg">
+    <section>
+      <h3>共用連線（通行碼）</h3>
+      <p class="sub" style="margin-bottom:10px">用別人架好的 Worker，不需要自己的 API Key。通行碼只存在這個瀏覽器。</p>
+      <div class="field">
+        <label for="workerInput">Worker 網址（程式裡已填的話可留空）</label>
+        <input id="workerInput" type="url" autocomplete="off" spellcheck="false" placeholder="https://xxx.workers.dev">
+      </div>
+      <div class="field">
+        <label for="codeInput">通行碼</label>
+        <div class="row">
+          <input id="codeInput" type="password" autocomplete="off" spellcheck="false" placeholder="輸入通行碼">
+          <button class="btn" id="codeToggle" type="button">顯示</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3>或：直接用自己的 API Key</h3>
+      <div class="field">
+        <label for="keyInput">API Key（只存在這個瀏覽器，有填通行碼時會優先用通行碼）</label>
+        <div class="row">
+          <input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="貼上 AI Studio 的 Key">
+          <button class="btn" id="keyToggle" type="button">顯示</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="modelInput">模型名稱</label>
+        <input id="modelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gemini-3-flash-preview">
+      </div>
+      <div class="field">
+        <label for="colorSel">漲跌顏色</label>
+        <select id="colorSel">
+          <option value="gr">綠色代表上升，紅色代表下降</option>
+          <option value="rg">紅色代表上升，綠色代表下降</option>
+        </select>
+      </div>
+    </section>
+
+    <section>
+      <h3>使用者：<span id="profName"></span></h3>
+      <p class="sub" style="margin-bottom:10px">每位使用者各自有 API Key 和分類，互不影響。</p>
+      <div class="row">
+        <button class="btn" data-act="addProfile" type="button">新增使用者</button>
+        <button class="btn" data-act="renameProfile" type="button">改名</button>
+        <button class="btn" data-act="delProfile" type="button">刪除這位使用者</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>分類備份</h3>
+      <p class="sub" style="margin-bottom:10px">分類會自動存在這個瀏覽器。要搬到另一台電話或電腦，先匯出，再到那邊匯入。</p>
+      <div class="row">
+        <button class="btn" data-act="exportCats" type="button">匯出分類</button>
+        <button class="btn" data-act="importCats" type="button">匯入分類</button>
+        <input id="fileImport" type="file" accept="application/json,.json" hidden>
+      </div>
+    </section>
+
+    <form method="dialog"><button class="btn primary" style="width:100%">完成</button></form>
+  </div>
+</dialog>
+
+<div id="toast" role="status"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- 工具 ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 8);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch{ return false; } },
+  del(k){ try{ localStorage.removeItem(k); }catch{} }
+};
+let toastTimer;
+function toast(m){
+  const el = $('#toast'); el.textContent = m; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+const nowStr = () => new Date().toLocaleString('zh-TW', { hour12:false });
+
+/* ---------- 使用者與資料 ---------- */
+const MODEL_DEFAULT = 'gemini-3-flash-preview';
+// 部署 Cloudflare Worker 後，把它的網址貼在下面的引號裡。這個網址可以公開，沒有通行碼的人用不了。
+const DEFAULT_WORKER_URL = 'https://market-radar.loveayame5777.workers.dev/';
+const DEFAULT_CATS = [
+  { id:'c1', name:'美股科技', stocks:['AAPL','NVDA','MSFT'] },
+  { id:'c2', name:'馬股銀行', stocks:['Maybank 1155','Public Bank 1295'] }
+];
+let profiles = store.get('sa:profiles', null);
+if(!Array.isArray(profiles) || !profiles.length) profiles = [{ id:'me', name:'我' }];
+let currentId = store.get('sa:current', null);
+if(!profiles.some(p => p.id === currentId)) currentId = profiles[0].id;
+const pk = k => `sa:${currentId}:${k}`;
+const getKey = () => String(store.get(pk('key'), '') || '').trim();
+const getModel = () => String(store.get(pk('model'), '') || '').trim() || MODEL_DEFAULT;
+const getWorker = () => String(store.get(pk('worker'), '') || '').trim() || DEFAULT_WORKER_URL;
+const getCode = () => String(store.get(pk('code'), '') || '').trim();
+const hasAccess = () => !!((getWorker() && getCode()) || getKey());
+const getColor = () => store.get(pk('color'), 'gr');
+const saveProfiles = () => { store.set('sa:profiles', profiles); store.set('sa:current', currentId); };
+
+let cats = [];
+let activeTab = 'gold';
+let selected = new Set();
+let busy = false;
+
+const curCat = () => cats.find(c => c.id === activeTab);
+const saveCats = () => store.set(pk('cats'), cats);
+function resetSel(){ const c = curCat(); selected = new Set(c ? c.stocks : []); }
+function loadProfile(){
+  const saved = store.get(pk('cats'), null);
+  cats = Array.isArray(saved) ? saved : JSON.parse(JSON.stringify(DEFAULT_CATS));
+  if(!Array.isArray(saved)) saveCats();
+  activeTab = 'gold'; selected = new Set();
+  document.body.dataset.color = getColor() === 'rg' ? 'rg' : 'gr';
+  $('#result').hidden = true; $('#result').innerHTML = '';
+}
+
+/* ---------- 畫面：頂部、分類、面板 ---------- */
+function renderProfiles(){
+  $('#profileSel').innerHTML = profiles.map(p => `<option value="${esc(p.id)}" ${p.id===currentId?'selected':''}>${esc(p.name)}</option>`).join('');
+}
+function renderTabs(){
+  const t = [`<button class="tab gold ${activeTab==='gold'?'on':''}" data-tab="gold">黃金 / USD</button>`];
+  cats.forEach(c => t.push(`<button class="tab ${activeTab===c.id?'on':''}" data-tab="${esc(c.id)}">${esc(c.name)}</button>`));
+  t.push(`<button class="tab add" data-act="addCat">＋ 新分類</button>`);
+  $('#tabs').innerHTML = t.join('');
+}
+function renderPanel(){
+  const el = $('#panel');
+  const note = hasAccess() ? '' : `<div class="notice">還沒有連線設定。<button class="link" data-act="settings">到設定輸入通行碼或 API Key</button> 之後才能分析。</div>`;
+  if(activeTab === 'gold'){
+    el.innerHTML = `${note}
+      <div class="panel-head"><h2>黃金 / USD</h2></div>
+      <p class="sub">選一個問題，AI 會搜尋過去 24 小時的新聞再回答。</p>
+      <div class="asks">
+        <button class="ask" data-ask="usd"><b>今天 USD 有新聞嗎？</b><span>列出 24 小時內會影響美元的重要新聞</span></button>
+        <button class="ask gold" data-ask="gold"><b>黃金今天會升還是跌？</b><span>用 24 小時新聞推測，附建議買入價和賣出價</span></button>
+      </div>`;
+    return;
+  }
+  const c = curCat();
+  if(!c){ activeTab = 'gold'; renderTabs(); renderPanel(); return; }
+  const chips = c.stocks.map((s, i) => `
+    <div class="chip ${selected.has(s)?'on':''}">
+      <label><input type="checkbox" data-stock="${i}" ${selected.has(s)?'checked':''}><span>${esc(s)}</span></label>
+      <button class="x" data-act="rmStock" data-i="${i}" aria-label="移除 ${esc(s)}">✕</button>
+    </div>`).join('');
+  el.innerHTML = `${note}
+    <div class="panel-head">
+      <h2>${esc(c.name)}</h2>
+      <div class="row"><button class="btn text" data-act="renameCat">改名</button><button class="btn text" data-act="delCat">刪除分類</button></div>
+    </div>
+    ${c.stocks.length ? `<div class="chips">${chips}</div>` : `<p class="empty">這個分類還沒有股票。在下面輸入代號或名稱，例如 AAPL、Maybank 1155。</p>`}
+    <form id="addStock" class="addrow" autocomplete="off">
+      <input name="s" placeholder="加入股票（可用逗號一次加多支）" aria-label="加入股票">
+      <button class="btn" type="submit">加入</button>
+    </form>
+    <div class="actions">
+      <button class="btn primary" id="analyze" data-act="analyze"></button>
+      <button class="btn" data-act="toggleAll">${selected.size === c.stocks.length && c.stocks.length ? '取消全選' : '全選'}</button>
+    </div>`;
+  updateAnalyze();
+}
+function updateAnalyze(){
+  const b = $('#analyze'); if(!b) return;
+  b.textContent = `分析所選股票（${selected.size}）`;
+  b.disabled = busy || !selected.size;
+}
+function renderAll(){ renderProfiles(); renderTabs(); renderPanel(); }
+
+/* ---------- Gemini ---------- */
+async function callGemini(prompt){
+  const worker = getWorker(), code = getCode(), key = getKey();
+  const useWorker = !!(worker && code);
+  if(!useWorker && !key){ openSettings(); throw new Error('請先在設定輸入通行碼，或你自己的 API Key。'); }
+  const payload = {
+    contents:[{ role:'user', parts:[{ text: prompt }] }],
+    tools:[{ google_search:{} }],
+    generationConfig:{ temperature:0.3 }
+  };
+  const headers = { 'Content-Type':'application/json' };
+  let url;
+  if(useWorker){
+    url = worker; headers['x-access-code'] = code; payload.model = getModel();
+  }else{
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(getModel())}:generateContent`;
+    headers['x-goog-api-key'] = key;
+  }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 120000);
+  let res;
+  try{
+    res = await fetch(url, { method:'POST', headers, body: JSON.stringify(payload), signal: ctrl.signal });
+  }catch(e){
+    throw new Error(e.name === 'AbortError' ? '等太久了（超過 2 分鐘），請再試一次。' : '連不上伺服器，請檢查網路。');
+  }finally{ clearTimeout(timer); }
+
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok){
+    const m = data?.error?.message || res.statusText || '';
+    if(res.status === 400 && /api key/i.test(m)) throw new Error('API Key 無效，請到設定重新貼上。');
+    if(res.status === 400) throw new Error('請求被拒絕：' + m);
+    if(res.status === 401) throw new Error('通行碼不對，請到設定重新輸入。');
+    if(res.status === 403) throw new Error('沒有權限：Key 被限制了，或這個網站不在 Worker 的允許名單內。');
+    if(res.status === 404) throw new Error(`找不到模型「${getModel()}」，請到設定改成目前可用的模型名稱。`);
+    if(res.status === 429) throw new Error('已達免費額度或請求太頻繁，過一會再試。');
+    if(res.status >= 500) throw new Error('Google 伺服器忙碌，稍後再試。');
+    throw new Error(`錯誤 ${res.status}：${m}`);
+  }
+  if(data.promptFeedback?.blockReason) throw new Error('請求被安全機制擋下：' + data.promptFeedback.blockReason);
+  const cand = data.candidates?.[0];
+  const text = (cand?.content?.parts || []).map(p => p.text || '').join('').trim();
+  if(!text) throw new Error('AI 沒有回傳內容，請再試一次。');
+  const sources = (cand?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean);
+  return { text, sources };
+}
+function extractJSON(text){
+  const t = text.replace(/```json|```/gi, '').trim();
+  const s = t.indexOf('{'), e = t.lastIndexOf('}');
+  if(s < 0 || e <= s) throw new Error('AI 回覆的格式無法解析。');
+  try{ return JSON.parse(t.slice(s, e + 1)); }
+  catch{ throw new Error('AI 回覆的格式無法解析。'); }
+}
+
+/* ---------- 提示詞 ---------- */
+const ctx = () => `現在時間：${nowStr()}（時區：${Intl.DateTimeFormat().resolvedOptions().timeZone}）。`;
+const RULES = '規則：請使用 Google 搜尋，只採用「過去 24 小時內」發布的新聞與公告；不要編造新聞或價格，找不到就明說。全部用繁體中文，每個說明欄位不超過 60 字。只輸出一個 JSON 物件，不要任何其他文字，也不要 markdown 程式碼框。';
+
+const stockPrompt = list => `${ctx()}
+你是股市新聞分析助手。請分析下列股票今天的走勢傾向：
+${list.map(s => '- ' + s).join('\n')}
+
+每支股票請做到：
+1. 確認所屬市場與交易貨幣，並查最新價格（price）。
+2. 依過去 24 小時新聞判斷今天傾向 direction（只能是「上升」「下降」「持平」之一），並給上升機率 prob_up（0 到 100 的整數）。
+3. 給建議買入價 buy 與建議賣出價 sell（數字，使用該股票的交易貨幣，要根據現價與新聞合理推算）。
+4. reason：依據哪則新聞；若過去 24 小時沒有相關新聞，請明說，並讓機率接近 50。
+5. risk：一句風險提示。
+找不到的股票，price、buy、sell 填 null，並在 reason 說明。
+
+${RULES}
+格式：{"items":[{"symbol":"","name":"","market":"","currency":"","price":0,"direction":"","prob_up":0,"buy":0,"sell":0,"reason":"","risk":""}]}`;
+
+const goldPrompt = () => `${ctx()}
+請依過去 24 小時的新聞，推測黃金（XAU/USD，每盎司美元）今天會上升還是下降。
+給出現價 price、傾向 direction（只能是「上升」「下降」「持平」之一）、上升機率 prob_up（0 到 100 的整數）、建議買入價 buy、建議賣出價 sell（數字，單位美元，要根據現價與新聞合理推算）。
+summary 是一句總結。drivers 列出最多 6 則影響黃金的新聞：time 是發布時間，headline 是新聞標題概述，effect 只能是「利多」「利空」「中性」之一，note 是一句說明。
+
+${RULES}
+格式：{"price":0,"direction":"","prob_up":0,"buy":0,"sell":0,"summary":"","drivers":[{"time":"","headline":"","effect":"","note":""}]}`;
+
+const usdPrompt = () => `${ctx()}
+請查過去 24 小時內，有沒有會影響美元（USD）的重要新聞，例如聯準會（Fed）談話、利率、通膨（CPI）、非農就業、美國經濟數據、地緣政治。
+has_news：有重要新聞填 true，沒有填 false。usd_bias 只能是「走強」「走弱」「持平」之一。overall 是一句總結。items 列出最多 8 則：time 是發布時間，headline 是新聞標題概述，effect 只能是「利多USD」「利空USD」「中性」之一，importance 只能是「高」「中」「低」之一。沒有新聞時 items 填空陣列。
+
+${RULES}
+格式：{"has_news":true,"usd_bias":"","overall":"","items":[{"time":"","headline":"","effect":"","importance":""}]}`;
+
+/* ---------- 表格元件 ---------- */
+function badge(t){
+  const s = String(t ?? '');
+  let c = 'flat', a = '●';
+  if(/上升|利多|走強|看漲|上漲/.test(s)){ c = 'up'; a = '▲'; }
+  else if(/下降|利空|走弱|看跌|下跌/.test(s)){ c = 'down'; a = '▼'; }
+  return `<span class="badge ${c}"><i aria-hidden="true">${a}</i>${esc(s || '—')}</span>`;
+}
+function meter(p){
+  if(p === null || p === undefined || p === '') return '—';
+  const n = Math.round(Number(p));
+  if(!Number.isFinite(n)) return esc(p);
+  const v = Math.max(0, Math.min(100, n));
+  return `<span class="meter"><b>${v}%</b><span class="bar"><span style="width:${v}%"></span></span></span>`;
+}
+function money(v, cur){
+  if(v === null || v === undefined || v === '') return '—';
+  const n = typeof v === 'number' ? v : Number(String(v).replace(/,/g, ''));
+  const body = Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits:4 }) : esc(v);
+  return `${cur ? `<small class="cur">${esc(cur)}</small>` : ''}${body}`;
+}
+function table(caption, cols, rows, cls = ''){
+  const head = cols.map(c => `<th scope="col" class="${c.c || ''}">${esc(c.l)}</th>`).join('');
+  const body = rows.map(r => `<tr>${r.map((x, i) =>
+    i === 0 ? `<th scope="row" class="sticky">${x}</th>` : `<td class="${cols[i].c || ''}">${x}</td>`).join('')}</tr>`).join('');
+  return `<h4 class="cap">${esc(caption)}</h4><div class="tablewrap" tabindex="0" role="region" aria-label="${esc(caption)}"><table class="${cls}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+/* ---------- 結果渲染 ---------- */
+function renderStocks(d){
+  const items = Array.isArray(d.items) ? d.items : [];
+  if(!items.length) throw new Error('AI 沒有回傳任何股票結果。');
+  const rows = items.map(x => [
+    `<strong>${esc(x.symbol || '—')}</strong><small>${esc([x.name, x.market].filter(Boolean).join('，'))}</small>`,
+    money(x.price, x.currency), badge(x.direction), meter(x.prob_up),
+    money(x.buy, x.currency), money(x.sell, x.currency),
+    esc(x.reason || '—'), esc(x.risk || '—')
+  ]);
+  return table('今日推測', [
+    { l:'股票' }, { l:'現價', c:'num' }, { l:'今日傾向' }, { l:'上升機率' },
+    { l:'建議買入', c:'num' }, { l:'建議賣出', c:'num' }, { l:'新聞依據', c:'long' }, { l:'風險', c:'mid' }
+  ], rows, 't-stock');
+}
+function renderGold(d){
+  const t1 = table('黃金（XAU/USD）今日推測', [
+    { l:'商品' }, { l:'現價', c:'num' }, { l:'今日傾向' }, { l:'上升機率' },
+    { l:'建議買入', c:'num' }, { l:'建議賣出', c:'num' }, { l:'總結', c:'long' }
+  ], [[
+    '<strong>黃金</strong><small>XAU/USD</small>', money(d.price, 'USD'), badge(d.direction), meter(d.prob_up),
+    money(d.buy, 'USD'), money(d.sell, 'USD'), esc(d.summary || '—')
+  ]], 't-gold');
+  const dr = Array.isArray(d.drivers) ? d.drivers : [];
+  const t2 = dr.length
+    ? table('24 小時內影響黃金的新聞', [{ l:'時間' }, { l:'新聞', c:'long' }, { l:'影響' }, { l:'說明', c:'long' }],
+        dr.map(x => [esc(x.time || '—'), esc(x.headline || '—'), badge(x.effect), esc(x.note || '—')]), 't-gold')
+    : `<p class="sub" style="margin-top:16px">過去 24 小時沒有找到明顯影響黃金的新聞。</p>`;
+  return t1 + t2;
+}
+function renderUsd(d){
+  const t1 = table('USD 今日新聞概況', [{ l:'項目' }, { l:'有重要新聞嗎' }, { l:'美元傾向' }, { l:'總結', c:'long' }],
+    [['<strong>USD</strong>', d.has_news ? '有' : '沒有', badge(d.usd_bias), esc(d.overall || '—')]], 't-gold');
+  const it = Array.isArray(d.items) ? d.items : [];
+  const t2 = it.length
+    ? table('24 小時內的美元新聞', [{ l:'時間' }, { l:'新聞', c:'long' }, { l:'對 USD 影響' }, { l:'重要性' }],
+        it.map(x => [esc(x.time || '—'), esc(x.headline || '—'), badge(x.effect), esc(x.importance || '—')]), 't-gold')
+    : `<p class="sub" style="margin-top:16px">過去 24 小時沒有找到重大的美元新聞。</p>`;
+  return t1 + t2;
+}
+function srcHtml(src){
+  const seen = new Set(), li = [];
+  for(const s of src){
+    if(!s?.uri || !/^https:\/\//.test(s.uri)) continue;
+    const t = s.title || s.uri;
+    if(seen.has(t)) continue; seen.add(t);
+    li.push(`<li><a href="${esc(s.uri)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a></li>`);
+    if(li.length >= 10) break;
+  }
+  return li.length ? `<details class="src"><summary>參考來源（${li.length}）</summary><ul>${li.join('')}</ul></details>` : '';
+}
+const HINT = `<div class="rotate-hint" role="note"><span id="hintMsg">表格比較寬，手機轉成橫向會顯示得更完整。</span><button class="btn" data-act="landscape">嘗試橫向</button><button class="btn" data-act="hideHint">知道了</button></div>`;
+
+function showLoading(title){
+  const r = $('#result'); r.hidden = false;
+  r.innerHTML = `<div class="loading" role="status"><span class="spin" aria-hidden="true"></span><div><b>${esc(title)}</b><p class="sub">正在搜尋 24 小時內的新聞並分析，通常需要 15 到 60 秒。</p></div></div>`;
+  r.scrollIntoView({ block:'start', behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth' });
+}
+function showError(msg, raw){
+  $('#result').innerHTML = `<div class="err" role="alert"><b>沒有成功</b><p>${esc(msg)}</p>${raw ? `<details><summary>查看 AI 原始回覆</summary><pre>${esc(raw)}</pre></details>` : ''}</div>`;
+}
+function showResult(title, body, sources){
+  const stamp = nowStr();
+  $('#result').innerHTML = `
+    <div class="res-head">
+      <div><h3 id="resTitle">${esc(title)}</h3><p class="sub">更新於 ${esc(stamp)}</p></div>
+      <div class="actions tight"><button class="btn" data-act="savePng">存成圖片</button><button class="btn" data-act="copy">複製文字</button></div>
+    </div>
+    ${HINT}
+    <div id="capture">
+      <div class="snap-title"><b>${esc(title)}</b> <small>${esc(stamp)}</small></div>
+      ${body}
+      <p class="disc">AI 根據新聞推測，僅供參考，不是投資建議。</p>
+    </div>
+    ${srcHtml(sources)}`;
+  const maxCols = Math.max(0, ...[...document.querySelectorAll('#capture thead tr')].map(r => r.children.length));
+  if(maxCols >= 5) $('.rotate-hint').classList.add('show');
+}
+
+/* ---------- 執行分析 ---------- */
+function setBusy(on){
+  busy = on;
+  document.querySelectorAll('.ask').forEach(b => b.disabled = on);
+  updateAnalyze();
+}
+async function run(kind){
+  if(busy) return;
+  let title, prompt, render;
+  if(kind === 'stocks'){
+    const list = [...selected];
+    if(!list.length) return toast('先勾選至少一支股票');
+    if(list.length > 10) return toast('一次最多分析 10 支，請取消一些');
+    title = `${curCat().name}：${list.length} 支股票`; prompt = stockPrompt(list); render = renderStocks;
+  }else if(kind === 'gold'){
+    title = '黃金今日推測'; prompt = goldPrompt(); render = renderGold;
+  }else{
+    title = 'USD 今日新聞'; prompt = usdPrompt(); render = renderUsd;
+  }
+  setBusy(true); showLoading(title);
+  let raw = '';
+  try{
+    const { text, sources } = await callGemini(prompt);
+    raw = text;
+    const body = render(extractJSON(text));
+    showResult(title, body, sources);
+  }catch(e){
+    showError(e.message, raw);
+  }finally{
+    setBusy(false);
+  }
+}
+
+/* ---------- 存圖、複製、橫向 ---------- */
+async function savePng(){
+  const src = $('#capture');
+  if(!src) return;
+  if(!window.html2canvas) return toast('圖片功能沒載入，請檢查網路後重新整理頁面');
+  const wrap = document.createElement('div');
+  wrap.className = 'snap';
+  wrap.appendChild(src.cloneNode(true));
+  document.body.appendChild(wrap);
+  try{
+    const bg = getComputedStyle(document.body).getPropertyValue('--card').trim() || '#ffffff';
+    const canvas = await html2canvas(wrap, { scale:2, backgroundColor:bg });
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `market-radar-${Date.now()}.png`, { type:'image/png' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file] });
+    }else{
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+  }catch(e){
+    if(e.name !== 'AbortError') toast('存圖失敗：' + e.message);
+  }finally{ wrap.remove(); }
+}
+async function copyText(){
+  const cap = $('#capture'); if(!cap) return;
+  const out = [$('#resTitle')?.textContent || ''];
+  cap.querySelectorAll('.cap, tbody tr, thead tr').forEach(el => {
+    out.push(el.classList.contains('cap') ? '\n' + el.textContent : [...el.children].map(c => c.innerText.replace(/\s+/g, ' ').trim()).join(' | '));
+  });
+  try{ await navigator.clipboard.writeText(out.join('\n')); toast('已複製'); }
+  catch{ toast('這個瀏覽器不允許複製'); }
+}
+async function tryLandscape(){
+  try{
+    await document.documentElement.requestFullscreen();
+    await screen.orientation.lock('landscape');
+  }catch{
+    const m = $('#hintMsg'); if(m) m.textContent = '這個瀏覽器不能自動轉向，請手動把手機轉成橫向。';
+  }
+}
+
+/* ---------- 設定 ---------- */
+function openSettings(){
+  $('#workerInput').value = store.get(pk('worker'), '') || '';
+  $('#codeInput').value = getCode();
+  $('#codeInput').type = 'password'; $('#codeToggle').textContent = '顯示';
+  $('#keyInput').value = getKey();
+  $('#keyInput').type = 'password'; $('#keyToggle').textContent = '顯示';
+  $('#modelInput').value = store.get(pk('model'), '') || '';
+  $('#colorSel').value = getColor() === 'rg' ? 'rg' : 'gr';
+  $('#profName').textContent = profiles.find(p => p.id === currentId)?.name || '';
+  if(!$('#dlg').open) $('#dlg').showModal();
+}
+function switchProfile(id){
+  currentId = id; saveProfiles(); loadProfile(); renderAll();
+}
+function addProfile(){
+  const n = (prompt('新使用者的名字（例如：哥哥）') || '').trim().slice(0, 20);
+  if(!n) return;
+  const p = { id:'u' + uid(), name:n };
+  profiles.push(p); currentId = p.id; saveProfiles(); loadProfile(); renderAll(); openSettings();
+  toast(`已切換到「${n}」，請輸入這位使用者的通行碼或 API Key`);
+}
+function renameProfile(){
+  const p = profiles.find(x => x.id === currentId);
+  const n = (prompt('新名字', p.name) || '').trim().slice(0, 20);
+  if(!n) return;
+  p.name = n; saveProfiles(); renderProfiles(); $('#profName').textContent = n;
+}
+function delProfile(){
+  if(profiles.length < 2) return toast('至少要保留一位使用者');
+  const p = profiles.find(x => x.id === currentId);
+  if(!confirm(`刪除使用者「${p.name}」？他的 Key 和分類都會被清掉。`)) return;
+  ['cats','key','model','color','worker','code'].forEach(k => store.del(pk(k)));
+  profiles = profiles.filter(x => x.id !== currentId);
+  switchProfile(profiles[0].id); openSettings();
+}
+function exportCats(){
+  const blob = new Blob([JSON.stringify({ version:1, cats }, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'market-radar-categories.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function importCats(file){
+  try{
+    const obj = JSON.parse(await file.text());
+    if(!Array.isArray(obj.cats)) throw new Error();
+    const next = obj.cats.slice(0, 30).map(c => ({
+      id:'c' + uid(),
+      name:String(c.name || '未命名').slice(0, 30),
+      stocks:(Array.isArray(c.stocks) ? c.stocks : []).map(s => String(s).slice(0, 40)).slice(0, 60)
+    }));
+    if(!confirm(`匯入 ${next.length} 個分類，會取代目前使用者的分類。確定？`)) return;
+    cats = next; saveCats(); activeTab = 'gold'; selected = new Set(); renderTabs(); renderPanel(); toast('已匯入');
+  }catch{ toast('檔案格式不對，無法匯入'); }
+}
+
+/* ---------- 事件 ---------- */
+const actions = {
+  addCat(){
+    const n = (prompt('分類名稱（例如：馬股銀行）') || '').trim().slice(0, 30);
+    if(!n) return;
+    const c = { id:'c' + uid(), name:n, stocks:[] };
+    cats.push(c); saveCats(); activeTab = c.id; resetSel(); renderTabs(); renderPanel();
+  },
+  renameCat(){
+    const c = curCat(); if(!c) return;
+    const n = (prompt('新名稱', c.name) || '').trim().slice(0, 30);
+    if(!n) return;
+    c.name = n; saveCats(); renderTabs(); renderPanel();
+  },
+  delCat(){
+    const c = curCat();
+    if(!c || !confirm(`刪除分類「${c.name}」和裡面的股票？`)) return;
+    cats = cats.filter(x => x !== c); saveCats(); activeTab = 'gold'; renderTabs(); renderPanel();
+  },
+  rmStock(t){
+    const c = curCat(); if(!c) return;
+    const [s] = c.stocks.splice(+t.dataset.i, 1);
+    selected.delete(s); saveCats(); renderPanel();
+  },
+  toggleAll(){
+    const c = curCat(); if(!c) return;
+    selected = selected.size === c.stocks.length ? new Set() : new Set(c.stocks);
+    renderPanel();
+  },
+  analyze(){ run('stocks'); },
+  settings: openSettings,
+  savePng, copy: copyText, landscape: tryLandscape,
+  hideHint(){ $('.rotate-hint')?.classList.remove('show'); },
+  addProfile, renameProfile, delProfile, exportCats,
+  importCats(){ $('#fileImport').click(); }
+};
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab],[data-act],[data-ask]');
+  if(!t) return;
+  if(t.dataset.tab){ activeTab = t.dataset.tab; resetSel(); renderTabs(); renderPanel(); return; }
+  if(t.dataset.ask){ run(t.dataset.ask); return; }
+  actions[t.dataset.act]?.(t);
+});
+document.addEventListener('change', e => {
+  const cb = e.target.closest('input[data-stock]');
+  if(!cb) return;
+  const c = curCat(); if(!c) return;
+  const s = c.stocks[+cb.dataset.stock];
+  cb.checked ? selected.add(s) : selected.delete(s);
+  cb.closest('.chip').classList.toggle('on', cb.checked);
+  updateAnalyze();
+});
+document.addEventListener('submit', e => {
+  if(e.target.id !== 'addStock') return;
+  e.preventDefault();
+  const c = curCat(); if(!c) return;
+  const parts = e.target.elements.s.value.split(/[,，、\n]+/).map(s => s.trim().slice(0, 40)).filter(Boolean);
+  let added = 0;
+  for(const p of parts){
+    if(c.stocks.some(x => x.toLowerCase() === p.toLowerCase())) continue;
+    c.stocks.push(p); selected.add(p); added++;
+  }
+  if(added){ saveCats(); renderPanel(); $('#addStock input')?.focus(); }
+  else e.target.elements.s.value = '';
+});
+$('#profileSel').addEventListener('change', e => switchProfile(e.target.value));
+$('#workerInput').addEventListener('input', e => store.set(pk('worker'), e.target.value.trim()));
+$('#codeInput').addEventListener('input', e => store.set(pk('code'), e.target.value.trim()));
+$('#codeToggle').addEventListener('click', () => {
+  const i = $('#codeInput'); const show = i.type === 'password';
+  i.type = show ? 'text' : 'password'; $('#codeToggle').textContent = show ? '隱藏' : '顯示';
+});
+$('#keyInput').addEventListener('input', e => store.set(pk('key'), e.target.value.trim()));
+$('#modelInput').addEventListener('input', e => store.set(pk('model'), e.target.value.trim()));
+$('#colorSel').addEventListener('change', e => { store.set(pk('color'), e.target.value); document.body.dataset.color = e.target.value; });
+$('#keyToggle').addEventListener('click', () => {
+  const i = $('#keyInput'); const show = i.type === 'password';
+  i.type = show ? 'text' : 'password'; $('#keyToggle').textContent = show ? '隱藏' : '顯示';
+});
+$('#fileImport').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if(f) importCats(f); });
+$('#dlg').addEventListener('close', () => renderPanel());
+
+/* ---------- 啟動 ---------- */
+saveProfiles();
+loadProfile();
+renderAll();
+})();
+</script>
+</body>
+</html>
