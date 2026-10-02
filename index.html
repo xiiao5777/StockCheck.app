@@ -275,7 +275,7 @@ const nowStr = () => new Date().toLocaleString('zh-TW', { hour12:false });
 /* ---------- 使用者與資料 ---------- */
 const MODEL_DEFAULT = 'gemini-3.8-flash';
 // 部署 Cloudflare Worker 後，把它的網址貼在下面的引號裡。這個網址可以公開，沒有通行碼的人用不了。
-const DEFAULT_WORKER_URL = '';
+const DEFAULT_WORKER_URL = 'https://market-radar.loveayame5777.workers.dev/';
 const DEFAULT_CATS = [
   { id:'c1', name:'美股科技', stocks:['AAPL','NVDA','MSFT'] },
   { id:'c2', name:'馬股銀行', stocks:['Maybank 1155','Public Bank 1295'] }
