@@ -179,7 +179,7 @@ dialog::backdrop{background:rgba(8,16,24,.55)}
   <section id="result" class="result" aria-live="polite" hidden></section>
 </main>
 
-<footer>AI 根據新聞推測，可能出錯，僅供參考，不是投資建議。<br>網頁版本 v6</footer>
+<footer>AI 根據新聞推測，可能出錯，僅供參考，不是投資建議。<br>網頁版本 v7</footer>
 
 <dialog id="dlg">
   <div class="dlg">
@@ -213,6 +213,7 @@ dialog::backdrop{background:rgba(8,16,24,.55)}
         <div class="row">
           <input id="modelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gemini-3.8-flash">
           <button class="btn" data-act="listModels" type="button">查詢可用模型</button>
+          <button class="btn" data-act="testModel" type="button">測試這個模型</button>
         </div>
         <div id="modelList" aria-live="polite"></div>
       </div>
@@ -274,7 +275,7 @@ const nowStr = () => new Date().toLocaleString('zh-TW', { hour12:false });
 /* ---------- 使用者與資料 ---------- */
 const MODEL_DEFAULT = 'gemini-3.8-flash';
 // 部署 Cloudflare Worker 後，把它的網址貼在下面的引號裡。這個網址可以公開，沒有通行碼的人用不了。
-const DEFAULT_WORKER_URL = 'https://market-radar.loveayame5777.workers.dev/';
+const DEFAULT_WORKER_URL = '';
 const DEFAULT_CATS = [
   { id:'c1', name:'美股科技', stocks:['AAPL','NVDA','MSFT'] },
   { id:'c2', name:'馬股銀行', stocks:['Maybank 1155','Public Bank 1295'] }
@@ -366,15 +367,15 @@ function updateAnalyze(){
 function renderAll(){ renderProfiles(); renderTabs(); renderPanel(); }
 
 /* ---------- Gemini ---------- */
-async function callGemini(prompt){
+async function callGemini(prompt, { search = true } = {}){
   const worker = getWorker(), code = getCode(), key = getKey();
   const useWorker = !!(worker && code);
   if(!useWorker && !key){ openSettings(); throw new Error('請先在設定輸入通行碼，或你自己的 API Key。'); }
   const payload = {
     contents:[{ role:'user', parts:[{ text: prompt }] }],
-    tools:[{ google_search:{} }],
     generationConfig:{ temperature:0.3 }
   };
+  if(search) payload.tools = [{ google_search:{} }];
   const headers = { 'Content-Type':'application/json' };
   let url;
   if(useWorker){
@@ -721,6 +722,18 @@ async function listModels(){
   }
 }
 
+async function testModel(){
+  const box = $('#modelList');
+  box.innerHTML = '<div>測試「' + esc(getModel()) + '」中，約 10 到 30 秒…</div>';
+  const out = [];
+  for(const [label, search] of [['不搜尋', false], ['搜尋新聞', true]]){
+    try{ await callGemini('只回答 OK 兩個字。', { search }); out.push(`✔ ${label}：可以用`); }
+    catch(e){ out.push(`✘ ${label}：${String(e.message).split('\n')[0]}`); }
+  }
+  box.innerHTML = '<div style="width:100%">' + out.map(esc).join('<br>') +
+    '<br>若「不搜尋」成功、「搜尋新聞」失敗，代表這個模型在免費版不能用搜尋功能。</div>';
+}
+
 /* ---------- 事件 ---------- */
 const actions = {
   addCat(){
@@ -754,7 +767,7 @@ const actions = {
   settings: openSettings,
   savePng, copy: copyText, landscape: tryLandscape,
   hideHint(){ $('.rotate-hint')?.classList.remove('show'); },
-  addProfile, renameProfile, delProfile, exportCats, listModels,
+  addProfile, renameProfile, delProfile, exportCats, listModels, testModel,
   importCats(){ $('#fileImport').click(); }
 };
 
