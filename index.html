@@ -142,6 +142,9 @@ dialog::backdrop{background:rgba(8,16,24,.55)}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .row>input{flex:1 1 180px}
 
+#modelList{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:13px;color:var(--muted)}
+.chipbtn{min-height:34px;padding:2px 10px;font-weight:500;font-size:13px}
+.chipbtn.on{border-color:var(--accent);background:var(--sel)}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
 #toast.show{opacity:1}
 
@@ -206,7 +209,11 @@ dialog::backdrop{background:rgba(8,16,24,.55)}
       </div>
       <div class="field">
         <label for="modelInput">模型名稱</label>
-        <input id="modelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gemini-3-flash-preview">
+        <div class="row">
+          <input id="modelInput" type="text" autocomplete="off" spellcheck="false" placeholder="gemini-3.8-flash">
+          <button class="btn" data-act="listModels" type="button">查詢可用模型</button>
+        </div>
+        <div id="modelList" aria-live="polite"></div>
       </div>
       <div class="field">
         <label for="colorSel">漲跌顏色</label>
@@ -264,9 +271,9 @@ function toast(m){
 const nowStr = () => new Date().toLocaleString('zh-TW', { hour12:false });
 
 /* ---------- 使用者與資料 ---------- */
-const MODEL_DEFAULT = 'gemini-3-flash-preview';
+const MODEL_DEFAULT = 'gemini-3.8-flash';
 // 部署 Cloudflare Worker 後，把它的網址貼在下面的引號裡。這個網址可以公開，沒有通行碼的人用不了。
-const DEFAULT_WORKER_URL = 'https://market-radar.loveayame5777.workers.dev/';
+const DEFAULT_WORKER_URL = '';
 const DEFAULT_CATS = [
   { id:'c1', name:'美股科技', stocks:['AAPL','NVDA','MSFT'] },
   { id:'c2', name:'馬股銀行', stocks:['Maybank 1155','Public Bank 1295'] }
@@ -313,7 +320,10 @@ function renderTabs(){
 }
 function renderPanel(){
   const el = $('#panel');
-  const note = hasAccess() ? '' : `<div class="notice">還沒有連線設定。<button class="link" data-act="settings">到設定輸入通行碼或 API Key</button> 之後才能分析。</div>`;
+  const why = getCode() && !getWorker() ? '已輸入通行碼，但缺少 Worker 網址。'
+    : getWorker() && !getCode() ? '已有 Worker 網址，但還沒輸入通行碼。'
+    : '還沒有連線設定。';
+  const note = hasAccess() ? '' : `<div class="notice">${why}<button class="link" data-act="settings">到設定補上</button>（Worker 網址和通行碼都要有，或改填你自己的 API Key）。</div>`;
   if(activeTab === 'gold'){
     el.innerHTML = `${note}
       <div class="panel-head"><h2>黃金 / USD</h2></div>
@@ -388,8 +398,8 @@ async function callGemini(prompt){
     if(res.status === 400) throw new Error('請求被拒絕：' + m);
     if(res.status === 401) throw new Error('通行碼不對，請到設定重新輸入。');
     if(res.status === 403) throw new Error('沒有權限：Key 被限制了，或這個網站不在 Worker 的允許名單內。');
-    if(res.status === 404) throw new Error(`找不到模型「${getModel()}」，請到設定改成目前可用的模型名稱。`);
-    if(res.status === 429) throw new Error('已達免費額度或請求太頻繁，過一會再試。');
+    if(res.status === 404) throw new Error(`找不到模型「${getModel()}」（新帳號可能用不到舊模型）。請到設定按「查詢可用模型」，點一個清單裡有的。`);
+    if(res.status === 429) throw new Error(`已達額度上限或請求太頻繁。免費版的搜尋功能只有部分模型提供，目前用的是「${getModel()}」。可以過一會再試，或到設定按「查詢可用模型」換一個（例如名稱有 lite 的）。`);
     if(res.status >= 500) throw new Error('Google 伺服器忙碌，稍後再試。');
     throw new Error(`錯誤 ${res.status}：${m}`);
   }
@@ -681,6 +691,32 @@ async function importCats(file){
   }catch{ toast('檔案格式不對，無法匯入'); }
 }
 
+async function listModels(){
+  const worker = getWorker(), code = getCode(), key = getKey();
+  const useWorker = !!(worker && code);
+  if(!useWorker && !key) return toast('請先填通行碼或 API Key');
+  const box = $('#modelList'); box.textContent = '查詢中…';
+  try{
+    const res = useWorker
+      ? await fetch(worker, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-access-code':code }, body: JSON.stringify({ action:'models' }) })
+      : await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers:{ 'x-goog-api-key': key } });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(res.status === 401 ? '通行碼不對' : (data?.error?.message || `錯誤 ${res.status}`));
+    const names = (data.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => String(m.name || '').replace(/^models\//, ''))
+      .filter(n => /^gemini-/.test(n) && !/image|tts|live|audio|embedding|robotics|computer|omni|deep-research/i.test(n))
+      .sort((a, b) => b.localeCompare(a, 'en', { numeric:true }));
+    const cur = getModel();
+    box.innerHTML = names.length
+      ? names.map(n => `<button type="button" class="btn chipbtn ${n===cur?'on':''}" data-model="${esc(n)}">${esc(n)}</button>`).join('')
+      : '沒有找到可用的模型。';
+    if(names.length && !useWorker) toast('點一個模型名稱就會套用');
+  }catch(e){
+    box.textContent = '查詢失敗：' + e.message + (useWorker ? '（如果顯示格式錯誤，請先把新版 worker.js 貼到 Cloudflare 並 Deploy）' : '');
+  }
+}
+
 /* ---------- 事件 ---------- */
 const actions = {
   addCat(){
@@ -714,13 +750,18 @@ const actions = {
   settings: openSettings,
   savePng, copy: copyText, landscape: tryLandscape,
   hideHint(){ $('.rotate-hint')?.classList.remove('show'); },
-  addProfile, renameProfile, delProfile, exportCats,
+  addProfile, renameProfile, delProfile, exportCats, listModels,
   importCats(){ $('#fileImport').click(); }
 };
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-tab],[data-act],[data-ask]');
+  const t = e.target.closest('[data-tab],[data-act],[data-ask],[data-model]');
   if(!t) return;
+  if(t.dataset.model){
+    store.set(pk('model'), t.dataset.model); $('#modelInput').value = t.dataset.model;
+    document.querySelectorAll('#modelList [data-model]').forEach(b => b.classList.toggle('on', b === t));
+    toast('已改用 ' + t.dataset.model); return;
+  }
   if(t.dataset.tab){ activeTab = t.dataset.tab; resetSel(); renderTabs(); renderPanel(); return; }
   if(t.dataset.ask){ run(t.dataset.ask); return; }
   actions[t.dataset.act]?.(t);
@@ -748,13 +789,17 @@ document.addEventListener('submit', e => {
   else e.target.elements.s.value = '';
 });
 $('#profileSel').addEventListener('change', e => switchProfile(e.target.value));
-$('#workerInput').addEventListener('input', e => store.set(pk('worker'), e.target.value.trim()));
-$('#codeInput').addEventListener('input', e => store.set(pk('code'), e.target.value.trim()));
+const saveField = (k, v) => {
+  if(!store.set(pk(k), v.trim())) toast('瀏覽器擋住了儲存，請不要用無痕模式或 App 內建瀏覽器');
+  renderPanel();
+};
+$('#workerInput').addEventListener('input', e => saveField('worker', e.target.value));
+$('#codeInput').addEventListener('input', e => saveField('code', e.target.value));
 $('#codeToggle').addEventListener('click', () => {
   const i = $('#codeInput'); const show = i.type === 'password';
   i.type = show ? 'text' : 'password'; $('#codeToggle').textContent = show ? '隱藏' : '顯示';
 });
-$('#keyInput').addEventListener('input', e => store.set(pk('key'), e.target.value.trim()));
+$('#keyInput').addEventListener('input', e => saveField('key', e.target.value));
 $('#modelInput').addEventListener('input', e => store.set(pk('model'), e.target.value.trim()));
 $('#colorSel').addEventListener('change', e => { store.set(pk('color'), e.target.value); document.body.dataset.color = e.target.value; });
 $('#keyToggle').addEventListener('click', () => {
