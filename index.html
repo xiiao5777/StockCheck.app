@@ -125,6 +125,7 @@ thead th:first-child{background:var(--head);z-index:2}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation:none}}
 .err{border:1px solid var(--red);background:var(--red-bg);border-radius:8px;padding:12px 14px}
+.err p{white-space:pre-line}
 .err pre{white-space:pre-wrap;word-break:break-word;font-size:12px;margin:8px 0 0}
 .src{margin-top:12px;font-size:13px}
 .src ul{margin:6px 0 0;padding-left:20px}
@@ -178,7 +179,7 @@ dialog::backdrop{background:rgba(8,16,24,.55)}
   <section id="result" class="result" aria-live="polite" hidden></section>
 </main>
 
-<footer>AI 根據新聞推測，可能出錯，僅供參考，不是投資建議。</footer>
+<footer>AI 根據新聞推測，可能出錯，僅供參考，不是投資建議。<br>網頁版本 v6</footer>
 
 <dialog id="dlg">
   <div class="dlg">
@@ -399,7 +400,10 @@ async function callGemini(prompt){
     if(res.status === 401) throw new Error('通行碼不對，請到設定重新輸入。');
     if(res.status === 403) throw new Error('沒有權限：Key 被限制了，或這個網站不在 Worker 的允許名單內。');
     if(res.status === 404) throw new Error(`找不到模型「${getModel()}」（新帳號可能用不到舊模型）。請到設定按「查詢可用模型」，點一個清單裡有的。`);
-    if(res.status === 429) throw new Error(`已達額度上限或請求太頻繁。免費版的搜尋功能只有部分模型提供，目前用的是「${getModel()}」。可以過一會再試，或到設定按「查詢可用模型」換一個（例如名稱有 lite 的）。`);
+    if(res.status === 429){
+      const zero = /limit:\s*0/.test(m) ? '\n提示：「limit: 0」代表這個模型在免費版完全沒有額度，請換一個模型。' : '';
+      throw new Error(`已達額度上限或請求太頻繁（目前模型：${getModel()}）。\nGoogle 的原話：${m.slice(0, 400)}${zero}\n可以過一會再試，或到設定按「查詢可用模型」換一個（例如名稱有 lite 的）。`);
+    }
     if(res.status >= 500) throw new Error('Google 伺服器忙碌，稍後再試。');
     throw new Error(`錯誤 ${res.status}：${m}`);
   }
